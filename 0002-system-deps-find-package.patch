@@ -1,0 +1,47 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -217,8 +217,9 @@
+     hipblaslt_find_python("${hipblaslt_python_dev}")
+     hipblaslt_configure_bundled_python_command("${CMAKE_CURRENT_BINARY_DIR}/tensilelite/rocisa;${CMAKE_CURRENT_BINARY_DIR}/tensilelite" "${san_opts}")
+ else()
++    # System python-rocisa; still need tensilelite pure-Python for -m Tensile.*
+     hipblaslt_find_python("${hipblaslt_python_dev}")
+-    set(HIPBLASLT_PYTHON_COMMAND "${Python_EXECUTABLE}")
++    hipblaslt_configure_bundled_python_command("${hipblaslt_SOURCE_DIR}/tensilelite" "${san_opts}")
+ endif()
+ 
+ if(HIPBLASLT_ENABLE_ROCROLLER)
+@@ -256,18 +257,22 @@
+ endif()
+ 
+ if(NOT ROCM_LIBS_SUPERBUILD)
+-    if(HIPBLASLT_ENABLE_THEROCK)
+-        find_package(origami CONFIG QUIET)
+-    endif()
++    # Distro / TheRock: prefer installed origami; optional monorepo sibling
++    find_package(origami CONFIG QUIET)
+     if(NOT TARGET roc::origami)
+-        block(SCOPE_FOR VARIABLES)
+-            set(ORIGAMI_ENABLE_FETCH ON)
+-            set(ORIGAMI_BUILD_TESTING OFF)
+-            set(ORIGAMI_ENABLE_PYTHON OFF)
+-            set(BUILD_TESTING OFF)
+-            set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+-            add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../shared/origami" "${CMAKE_CURRENT_BINARY_DIR}/origami" EXCLUDE_FROM_ALL)
+-        endblock()
++        set(_origami_sibling "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/origami")
++        if(IS_DIRECTORY "${_origami_sibling}")
++            block(SCOPE_FOR VARIABLES)
++                set(ORIGAMI_ENABLE_FETCH ON)
++                set(ORIGAMI_BUILD_TESTING OFF)
++                set(ORIGAMI_ENABLE_PYTHON OFF)
++                set(BUILD_TESTING OFF)
++                set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
++                add_subdirectory("${_origami_sibling}" "${CMAKE_CURRENT_BINARY_DIR}/origami" EXCLUDE_FROM_ALL)
++            endblock()
++        else()
++            find_package(origami CONFIG REQUIRED)
++        endif()
+     endif()
+ endif()
+ 

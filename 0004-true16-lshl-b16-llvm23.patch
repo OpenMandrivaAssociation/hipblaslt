@@ -1,0 +1,46 @@
+--- a/tensilelite/Tensile/Components/PackData.py
++++ b/tensilelite/Tensile/Components/PackData.py
+@@ -21,7 +21,7 @@
+ ################################################################################
+ 
+ from rocisa import rocIsa
+-from rocisa.code import Module
++from rocisa.code import Module, TextBlock
+ from rocisa.container import vgpr, sgpr,SDWAModifiers, VOP3PModifiers
+ from rocisa.enum import DataTypeEnum, SelectBit, UnusedBit, SaturateCastType, HighBitSel
+ from rocisa.instruction import VAdd3U32, VCvtF32toF16, VLShiftRightB32, \
+@@ -38,6 +38,14 @@
+ from ..Component import PackData
+ from rocisa.instruction import ECvtF32toF16
+ 
++
++def _lshl_b16_true16(dst, shift_hex, src):
++    """v_lshlrev_b16 with true16 .l selectors for NoSDWA (LLVM 23 +real-true16)."""
++    ti = rocIsa.getInstance()
++    if ti.getArchCaps().get("NoSDWA"):
++        return TextBlock(f"v_lshlrev_b16 {dst}.l, {shift_hex}, {src}.l\n")
++    return VLShiftLeftB16(dst=dst, shiftHex=shift_hex, src=src)
++
+ def formatting(idx, inputPrefix, prefixOffset):
+     if inputPrefix:
+         return (inputPrefix + "%u"%(idx-prefixOffset))
+@@ -320,8 +328,8 @@
+                 d = destIdx + vi//4
+                 for i in reversed(range(0, 4)):
+                     module.add(VSaturateCastInt(vgpr(formatting(sumIdxV-i, inputPrefix, prefixOffset)), vgprI8Temp0, tmpS01, -128, 127, type=SaturateTypeInt8, initGpr=(i%4 == 3)))
+-                module.add(VLShiftLeftB16(dst=vgpr(formatting(sumIdxV-2, inputPrefix, prefixOffset)), shiftHex=8, src=vgpr(formatting(sumIdxV-2, inputPrefix, prefixOffset))))
+-                module.add(VLShiftLeftB16(dst=vgpr(formatting(sumIdxV-0, inputPrefix, prefixOffset)), shiftHex=8, src=vgpr(formatting(sumIdxV-0, inputPrefix, prefixOffset))))
++                module.add(_lshl_b16_true16(vgpr(formatting(sumIdxV-2, inputPrefix, prefixOffset)), 8, vgpr(formatting(sumIdxV-2, inputPrefix, prefixOffset))))
++                module.add(_lshl_b16_true16(vgpr(formatting(sumIdxV-0, inputPrefix, prefixOffset)), 8, vgpr(formatting(sumIdxV-0, inputPrefix, prefixOffset))))
+                 if ti.getArchCaps()["NoSDWA"]:
+                     module.add(VMovB32(vgpr(vgprI8Mask0), "0xFF", comment="bits 7:0")) # src0_sel=SelectBit.BYTE_0
+                     module.add(VAndB32(dst=vgpr(vgprI8Temp0), src0=vgpr(formatting(sumIdxV-3, inputPrefix, prefixOffset)), \
+@@ -371,7 +379,7 @@
+             if vi%2 == 1:
+                 for i in reversed(range(0, 2)):
+                     module.add(VSaturateCastInt(vgpr(formatting(sumIdxV-i, inputPrefix, prefixOffset)), vgprI8Temp0, tmpS01, -128, 127, type=SaturateTypeInt8, initGpr=(i%2 == 1)))
+-                module.add(VLShiftLeftB16(dst=vgpr(formatVgpr), shiftHex=8, src=vgpr(formatVgpr)))
++                module.add(_lshl_b16_true16(vgpr(formatVgpr), 8, vgpr(formatVgpr)))
+                 if ti.getArchCaps()["NoSDWA"]:
+                     module.add(VMovB32(vgpr(vgprI8Mask0), "0xFF", comment="bits 7:0")) # src0_sel=SelectBit.BYTE_0
+                     module.add(VAndB32(dst=vgpr(vgprI8Temp0), src0=vgpr(formatting(sumIdxV-1, inputPrefix, prefixOffset)), \
