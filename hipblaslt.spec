@@ -44,8 +44,8 @@ ExclusiveArch:	%{x86_64} %{aarch64}
 
 %description
 hipBLASLt provides high-performance GEMM using TensileLite device libraries.
-GPU targets: %%rocm_gpu_targets_hipblaslt (RDNA3/4). Polaris/gfx803 is not
-supported by upstream TensileLite.
+GPU targets are RDNA3/4 (see macros.rocm %%rocm_gpu_targets_hipblaslt).
+Polaris/gfx803 is not supported by upstream TensileLite.
 
 %package devel
 Summary:	Development files for hipblaslt
