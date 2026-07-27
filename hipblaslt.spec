@@ -108,11 +108,11 @@ export TENSILELITE_BUILD_PARALLEL_LEVEL=8
 cd build
 DESTDIR=%{buildroot} /usr/bin/ninja install -j%{?_smp_build_ncpus}%{!?_smp_build_ncpus:8}
 cd ..
-if [ -d %{buildroot}/usr/lib/cmake/hipblaslt ] && [ ! -d %{buildroot}%{_libdir}/cmake/hipblaslt ]; then
+# Relocate cmake package if installed under non-multilib libdir
+_cmakedir=$(find %{buildroot}%{_prefix} -type d -path '*/cmake/hipblaslt' 2>/dev/null | head -1)
+if [ -n "$_cmakedir" ] && [ "$_cmakedir" != "%{buildroot}%{_libdir}/cmake/hipblaslt" ]; then
 	mkdir -p %{buildroot}%{_libdir}/cmake
-	mv %{buildroot}/usr/lib/cmake/hipblaslt %{buildroot}%{_libdir}/cmake/
-	rmdir %{buildroot}/usr/lib/cmake 2>/dev/null || true
-	rmdir %{buildroot}/usr/lib 2>/dev/null || true
+	mv "$_cmakedir" %{buildroot}%{_libdir}/cmake/
 fi
 
 %files
