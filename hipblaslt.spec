@@ -39,7 +39,7 @@ BuildRequires:	python%{pyver}dist(msgpack)
 BuildRequires:	python%{pyver}dist(joblib)
 BuildRequires:	pkgconfig(msgpack-c)
 BuildRequires:	boost-devel
-BuildRequires:	lib64msgpack-cpp-devel
+BuildRequires:	cmake(msgpack-cxx)
 BuildRequires:	llvm-devel
 BuildRequires:	stdc++-static-devel
 
