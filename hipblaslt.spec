@@ -38,6 +38,10 @@ BuildRequires:	python%{pyver}dist(pyyaml)
 BuildRequires:	python%{pyver}dist(msgpack)
 BuildRequires:	python%{pyver}dist(joblib)
 BuildRequires:	pkgconfig(msgpack-c)
+BuildRequires:	boost-devel
+BuildRequires:	lib64msgpack-cpp-devel
+BuildRequires:	llvm-devel
+BuildRequires:	stdc++-static-devel
 
 # No gfx803 — TensileLite/extops don't support GFX8
 ExclusiveArch:	%{x86_64} %{aarch64}
