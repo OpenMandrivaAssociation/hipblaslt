@@ -4,6 +4,7 @@
 Name:		hipblaslt
 Version:	7.14.0
 Release:	1
+%{!?rocm_llvm_maj_ver:%global rocm_llvm_maj_ver 23}
 Summary:	HIP BLAS library with lightweight Tensile GEMM kernels
 License:	MIT
 Group:		System/Libraries
@@ -19,6 +20,7 @@ Patch2:		0004-true16-lshl-b16-llvm23.patch
 BuildRequires:	rocm-rpm-macros
 BuildRequires:	cmake
 BuildRequires:	ninja
+BuildRequires:	git-core
 BuildRequires:	rocm-cmake
 BuildRequires:	hipcc
 BuildRequires:	rocminfo
