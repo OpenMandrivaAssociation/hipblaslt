@@ -3,7 +3,7 @@
 
 Name:		hipblaslt
 Version:	7.14.0
-Release:	1
+Release:	2
 %{!?rocm_llvm_maj_ver:%global rocm_llvm_maj_ver 23}
 Summary:	HIP BLAS library with lightweight Tensile GEMM kernels
 License:	MIT
@@ -44,7 +44,6 @@ BuildRequires:	llvm-devel
 BuildRequires:	stdc++-static-devel
 
 # No gfx803 — TensileLite/extops don't support GFX8
-ExclusiveArch:	%{x86_64} %{aarch64}
 
 %description
 hipBLASLt provides high-performance GEMM using TensileLite device libraries.
