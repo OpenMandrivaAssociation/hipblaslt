@@ -77,8 +77,10 @@ export CXXFLAGS
 export CFLAGS="$CXXFLAGS"
 export LDFLAGS=$(printf '%s' "%{?__global_ldflags}" | sed -E 's/-mfpmath=[^ ]+//g; s/ -m[a-z0-9+.=]+//g')
 export CMAKE_HIP_FLAGS="%{rocm_hip_clang_flags}"
-export HIPBLASLT_BUILD_JOBS=8
-export TENSILELITE_BUILD_PARALLEL_LEVEL=8
+# Tensile with 8 jobs gets SIGKILL on the ryzen9 builders when
+# another heavy HIP compile (e.g. python-torch) shares the machine.
+export HIPBLASLT_BUILD_JOBS=2
+export TENSILELITE_BUILD_PARALLEL_LEVEL=2
 
 # Keep ROCm path flags out of CMAKE_CXX_FLAGS (host-only objects reject unused --rocm-*).
 %cmake %{rocm_cmake_fhs} \
@@ -95,7 +97,7 @@ export TENSILELITE_BUILD_PARALLEL_LEVEL=8
 	-DHIPBLASLT_ENABLE_MARKER=OFF \
 	-DHIPBLASLT_ENABLE_FETCH=OFF \
 	-DHIPBLASLT_BUNDLE_PYTHON_DEPS=OFF \
-	-DTENSILELITE_BUILD_PARALLEL_LEVEL=8 \
+	-DTENSILELITE_BUILD_PARALLEL_LEVEL=2 \
 	-DHIPBLASLT_ENABLE_HOST=ON \
 	-DHIPBLASLT_ENABLE_DEVICE=ON \
 	-DHIPBLASLT_ENABLE_EXTOPS=OFF \
