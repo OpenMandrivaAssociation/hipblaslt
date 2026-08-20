@@ -16,6 +16,8 @@ Patch0:		0002-system-deps-find-package.patch
 Patch1:		0003-true16-f16-cvt-llvm23.patch
 # LLVM 23 true16: v_lshlrev_b16 needs .l/.h for int8 pack
 Patch2:		0004-true16-lshl-b16-llvm23.patch
+# One TensileCreateLibrary process per gfx* (peak RAM) and skip TensileLogic --check-all
+Patch3:		0005-per-arch-tensile-create-library.patch
 
 BuildRequires:	rocm-rpm-macros
 BuildRequires:	cmake
@@ -77,10 +79,11 @@ export CXXFLAGS
 export CFLAGS="$CXXFLAGS"
 export LDFLAGS=$(printf '%s' "%{?__global_ldflags}" | sed -E 's/-mfpmath=[^ ]+//g; s/ -m[a-z0-9+.=]+//g')
 export CMAKE_HIP_FLAGS="%{rocm_hip_clang_flags}"
-# Tensile with 8 jobs gets SIGKILL on the ryzen9 builders when
-# another heavy HIP compile (e.g. python-torch) shares the machine.
-export HIPBLASLT_BUILD_JOBS=2
-export TENSILELITE_BUILD_PARALLEL_LEVEL=2
+# TensileCreateLibrary holds the whole solution set in one Python process.
+# jobs=2 still SIGKILL'd (141k solutions, 130k kernels). Per-arch patch
+# plus a single worker is what actually fits in ABF RAM.
+export HIPBLASLT_BUILD_JOBS=1
+export TENSILELITE_BUILD_PARALLEL_LEVEL=1
 
 # Keep ROCm path flags out of CMAKE_CXX_FLAGS (host-only objects reject unused --rocm-*).
 %cmake %{rocm_cmake_fhs} \
@@ -97,7 +100,7 @@ export TENSILELITE_BUILD_PARALLEL_LEVEL=2
 	-DHIPBLASLT_ENABLE_MARKER=OFF \
 	-DHIPBLASLT_ENABLE_FETCH=OFF \
 	-DHIPBLASLT_BUNDLE_PYTHON_DEPS=OFF \
-	-DTENSILELITE_BUILD_PARALLEL_LEVEL=2 \
+	-DTENSILELITE_BUILD_PARALLEL_LEVEL=1 \
 	-DHIPBLASLT_ENABLE_HOST=ON \
 	-DHIPBLASLT_ENABLE_DEVICE=ON \
 	-DHIPBLASLT_ENABLE_EXTOPS=OFF \
