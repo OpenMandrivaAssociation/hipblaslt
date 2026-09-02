@@ -2,14 +2,14 @@
 # Device generation uses system origami, stinkytofu, and python-rocisa.
 
 Name:		hipblaslt
-Version:	7.14.0
-Release:	2
+Version:	10.0.0
+Release:	1
 %{!?rocm_llvm_maj_ver:%global rocm_llvm_maj_ver 23}
 Summary:	HIP BLAS library with lightweight Tensile GEMM kernels
 License:	MIT
 Group:		System/Libraries
 URL:		https://github.com/ROCm/rocm-libraries
-Source0:	https://github.com/ROCm/rocm-libraries/releases/download/therock-7.14/hipblaslt.tar.gz#/hipblaslt-%{version}.tar.gz
+Source0:	https://github.com/ROCm/rocm-libraries/releases/download/therock-10.0/hipblaslt.tar.gz#/hipblaslt-%{version}.tar.gz
 # Use system rocisa: keep tensilelite pure-Python on PYTHONPATH when BUNDLE=OFF
 Patch0:		0002-system-deps-find-package.patch
 # LLVM 23 true16: f16 convert dst needs .l/.h (HighBitSel) for +real-true16 asm
@@ -79,11 +79,10 @@ export CXXFLAGS
 export CFLAGS="$CXXFLAGS"
 export LDFLAGS=$(printf '%s' "%{?__global_ldflags}" | sed -E 's/-mfpmath=[^ ]+//g; s/ -m[a-z0-9+.=]+//g')
 export CMAKE_HIP_FLAGS="%{rocm_hip_clang_flags}"
-# TensileCreateLibrary holds the whole solution set in one Python process.
-# jobs=2 still SIGKILL'd (141k solutions, 130k kernels). Per-arch patch
-# plus a single worker is what actually fits in ABF RAM.
-export HIPBLASLT_BUILD_JOBS=1
-export TENSILELITE_BUILD_PARALLEL_LEVEL=1
+# Per-arch TensileCreateLibrary (0005) keeps one gfx* solution set in RAM.
+# jobs=8 is safe here; the old all-arch process still OOM'd at jobs=2.
+export HIPBLASLT_BUILD_JOBS=8
+export TENSILELITE_BUILD_PARALLEL_LEVEL=8
 
 # Keep ROCm path flags out of CMAKE_CXX_FLAGS (host-only objects reject unused --rocm-*).
 %cmake %{rocm_cmake_fhs} \
@@ -100,7 +99,7 @@ export TENSILELITE_BUILD_PARALLEL_LEVEL=1
 	-DHIPBLASLT_ENABLE_MARKER=OFF \
 	-DHIPBLASLT_ENABLE_FETCH=OFF \
 	-DHIPBLASLT_BUNDLE_PYTHON_DEPS=OFF \
-	-DTENSILELITE_BUILD_PARALLEL_LEVEL=1 \
+	-DTENSILELITE_BUILD_PARALLEL_LEVEL=8 \
 	-DHIPBLASLT_ENABLE_HOST=ON \
 	-DHIPBLASLT_ENABLE_DEVICE=ON \
 	-DHIPBLASLT_ENABLE_EXTOPS=OFF \
