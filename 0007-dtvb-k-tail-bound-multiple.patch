@@ -1,6 +1,6 @@
 --- a/tensilelite/Tensile/SolutionStructs/Solution.py
 +++ b/tensilelite/Tensile/SolutionStructs/Solution.py
-@@ -1435,11 +1435,13 @@
+@@ -1435,10 +1435,11 @@
          # Use AssertSummationElementMultiple (BoundSizeMultiple in predicates) to exclude failed tail-loop cases
          state["AssertSummationElementMultiple"] = max(state["AssertSummationElementMultiple"], state["DepthU"])
  
