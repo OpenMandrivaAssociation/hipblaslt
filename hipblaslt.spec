@@ -3,7 +3,7 @@
 
 Name:		hipblaslt
 Version:	10.0.0
-Release:	1
+Release:	2
 %{!?rocm_llvm_maj_ver:%global rocm_llvm_maj_ver 23}
 Summary:	HIP BLAS library with lightweight Tensile GEMM kernels
 License:	MIT
@@ -18,6 +18,14 @@ Patch1:		0003-true16-f16-cvt-llvm23.patch
 Patch2:		0004-true16-lshl-b16-llvm23.patch
 # One TensileCreateLibrary process per gfx* (peak RAM) and skip TensileLogic --check-all
 Patch3:		0005-per-arch-tensile-create-library.patch
+# gfx12: HIP reports WGP count as Physical CUs; restore real CU count for GSU/WGM
+Patch4:		0006-gfx1200-physical-cu.patch
+# DTVB: require K % DepthU == 0 (tail load over-reads B; was NN-only)
+Patch5:		0007-dtvb-k-tail-bound-multiple.patch
+# Helper .hsaco are AMDGPU ELF ET_DYN. Full find-debuginfo strip drops .symtab
+# and hipModuleLoad then returns "device kernel image is invalid".
+# -g = strip debug only (eu-strip --strip-debug still loads).
+%global _find_debuginfo_opts -g
 
 BuildRequires:	rocm-rpm-macros
 BuildRequires:	cmake
@@ -115,12 +123,15 @@ export TENSILELITE_BUILD_PARALLEL_LEVEL=8
 cd build
 DESTDIR=%{buildroot} /usr/bin/ninja install -j%{?_smp_build_ncpus}%{!?_smp_build_ncpus:8}
 cd ..
+# These are device code objects, not host DSOs.
+find %{buildroot} -name '*.hsaco' -exec chmod 644 {} +
 # Relocate cmake package if installed under non-multilib libdir
 _cmakedir=$(find %{buildroot}%{_prefix} -type d -path '*/cmake/hipblaslt' 2>/dev/null | head -1)
 if [ -n "$_cmakedir" ] && [ "$_cmakedir" != "%{buildroot}%{_libdir}/cmake/hipblaslt" ]; then
 	mkdir -p %{buildroot}%{_libdir}/cmake
 	mv "$_cmakedir" %{buildroot}%{_libdir}/cmake/
 fi
+
 
 %files
 %license LICENSE.md

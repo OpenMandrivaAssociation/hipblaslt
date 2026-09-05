@@ -1,0 +1,104 @@
+--- a/tensilelite/src/hip/HipHardware.cpp
++++ b/tensilelite/src/hip/HipHardware.cpp
+@@ -29,6 +29,8 @@
+ #include <Tensile/hip/HipHardware.hpp>
+ #include <Tensile/hip/HipUtils.hpp>
+ 
++#include <cstdlib>
++#include <cstring>
+ #include <iostream>
+ #include <stdexcept>
+ 
+@@ -90,6 +92,23 @@
+                 HIP_CHECK_EXC(hipDeviceGetAttribute(&prop.multiProcessorCount,
+                                                     hipDeviceAttributePhysicalMultiProcessorCount,
+                                                     deviceId));
++                // HIP WGP mode reports Physical as WGP count (half of rocminfo
++                // CUs). Tensile uses this as computeUnitCount for auto-GSU
++                // workspace and WGMXCCG. Restore CU = 2*WGP on gfx12.
++                if(std::strncmp(prop.gcnArchName, "gfx12", 5) == 0)
++                {
++                    int wgpCount = 0;
++                    HIP_CHECK_EXC(hipDeviceGetAttribute(
++                        &wgpCount, hipDeviceAttributeMultiprocessorCount, deviceId));
++                    if(wgpCount > 0 && prop.multiProcessorCount == wgpCount)
++                        prop.multiProcessorCount *= 2;
++                    if(const char* env = std::getenv("TENSILE_GFX12_CU_COUNT"))
++                    {
++                        int forced = std::atoi(env);
++                        if(forced > 0)
++                            prop.multiProcessorCount = forced;
++                    }
++                }
+             }
+ #endif
+             return GetDevice(prop, deviceId);
+--- a/tensilelite/include/Tensile/PlaceholderLibrary.hpp
++++ b/tensilelite/include/Tensile/PlaceholderLibrary.hpp
+@@ -172,6 +172,12 @@
+                 auto        newLibrary = LoadLibraryFile<MyProblem, MySolution>(path);
+                 auto        mLibrary
+                     = static_cast<MasterSolutionLibrary<MyProblem, MySolution>*>(newLibrary.get());
++                if(!mLibrary || !mLibrary->library)
++                {
++                    if(Debug::Instance().printCodeObjectInfo())
++                        std::cout << "failed to load placeholder library " << path << std::endl;
++                    return false;
++                }
+                 library = mLibrary->library;
+ 
+                 std::lock_guard<std::mutex> lock(*solutionsGuard);
+@@ -223,6 +229,8 @@
+             if(!library)
+                 loadPlaceholderLibrary();
+ 
++            if(!library)
++                return {};
+             auto solution = library->getSolutionByIndex(problem, hardware, index);
+ 
+             if(solution)
+@@ -239,6 +247,8 @@
+             if(!library)
+                 loadPlaceholderLibrary();
+ 
++            if(!library)
++                return {};
+             auto solution = library->findBestSolution(problem, hardware, fitness);
+ 
+             if(solution)
+@@ -264,6 +274,8 @@
+                 loadPlaceholderLibrary();
+             }
+ 
++            if(!library)
++                return {};
+             auto solutions = library->findAllSolutions(problem, hardware, searchType);
+ 
+             for(auto& solution : solutions)
+@@ -285,6 +297,8 @@
+                 loadPlaceholderLibrary();
+             }
+ 
++            if(!library)
++                return {};
+             auto solutions = library->findAllSolutionsGroupedGemm(problems, hardware, searchType);
+ 
+             for(auto& solution : solutions)
+@@ -304,6 +318,8 @@
+                 loadPlaceholderLibrary();
+             }
+ 
++            if(!library)
++                return {};
+             auto solutions = library->findTopSolutions(problem, hardware, numSolutions);
+ 
+             for(auto& solution : solutions)
+@@ -331,6 +347,8 @@
+                 loadPlaceholderLibrary();
+             }
+ 
++            if(!library)
++                return {};
+             auto solutions = library->findTopSolutionsGroupedGemm(problems, hardware, numSolutions);
+ 
+             for(auto& solution : solutions)
