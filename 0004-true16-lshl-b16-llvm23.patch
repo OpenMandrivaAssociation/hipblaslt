@@ -1,5 +1,11 @@
---- a/tensilelite/Tensile/Components/PackData.py	2026-09-02 20:02:40.417566714 +0200
-+++ b/tensilelite/Tensile/Components/PackData.py	2026-09-02 20:03:21.447388478 +0200
+v_lshlrev_b16 needs true16 .l selectors on LLVM 23 NoSDWA.
+
+VLShiftLeftB16 emits a form clang 23 rejects when real-true16 is on.
+Emit the instruction text directly in that case.
+
+diff -Nurp a/tensilelite/Tensile/Components/PackData.py b/tensilelite/Tensile/Components/PackData.py
+--- a/tensilelite/Tensile/Components/PackData.py	2026-10-19 06:31:19.303234869 +0200
++++ b/tensilelite/Tensile/Components/PackData.py	2026-10-19 06:31:19.303412281 +0200
 @@ -21,7 +21,7 @@
  ################################################################################
  
@@ -9,7 +15,7 @@
  from rocisa.container import vgpr, sgpr,SDWAModifiers, VOP3PModifiers
  from rocisa.enum import DataTypeEnum, SelectBit, UnusedBit, SaturateCastType, HighBitSel
  from rocisa.instruction import VAdd3U32, VCvtF32toF16, VLShiftRightB32, \
-@@ -38,6 +38,14 @@
+@@ -38,6 +38,15 @@ from ..Common.DataType import DataType
  from ..Component import PackData
  from rocisa.instruction import ECvtF32toF16
  
@@ -21,10 +27,11 @@
 +        return TextBlock(f"v_lshlrev_b16 {dst}.l, {shift_hex}, {src}.l\n")
 +    return VLShiftLeftB16(dst=dst, shiftHex=shift_hex, src=src)
 +
++
  def formatting(idx, inputPrefix, prefixOffset):
      if inputPrefix:
          return (inputPrefix + "%u"%(idx-prefixOffset))
-@@ -320,8 +328,8 @@
+@@ -320,8 +329,8 @@ class PackData_INT8(PackData):
                  d = destIdx + vi//4
                  for i in reversed(range(0, 4)):
                      module.add(VSaturateCastInt(vgpr(formatting(sumIdxV-i, inputPrefix, prefixOffset)), vgprI8Temp0, tmpS01, -128, 127, type=SaturateTypeInt8, initGpr=(i%4 == 3)))
@@ -35,7 +42,7 @@
                  if ti.getArchCaps()["NoSDWA"]:
                      module.add(VMovB32(vgpr(vgprI8Mask0), "0xFF", comment="bits 7:0")) # src0_sel=SelectBit.BYTE_0
                      module.add(VAndB32(dst=vgpr(vgprI8Temp0), src0=vgpr(formatting(sumIdxV-3, inputPrefix, prefixOffset)), \
-@@ -371,7 +379,7 @@
+@@ -371,7 +380,7 @@ class PackData_INT8(PackData):
              if vi%2 == 1:
                  for i in reversed(range(0, 2)):
                      module.add(VSaturateCastInt(vgpr(formatting(sumIdxV-i, inputPrefix, prefixOffset)), vgprI8Temp0, tmpS01, -128, 127, type=SaturateTypeInt8, initGpr=(i%2 == 1)))

@@ -2,14 +2,14 @@
 # Device generation uses system origami, stinkytofu, and python-rocisa.
 
 Name:		hipblaslt
-Version:	10.0.0
-Release:	2
+Version:	10.1.0
+Release:	1
 %{!?rocm_llvm_maj_ver:%global rocm_llvm_maj_ver 23}
 Summary:	HIP BLAS library with lightweight Tensile GEMM kernels
 License:	MIT
 Group:		System/Libraries
 URL:		https://github.com/ROCm/rocm-libraries
-Source0:	https://github.com/ROCm/rocm-libraries/releases/download/therock-10.0/hipblaslt.tar.gz#/hipblaslt-%{version}.tar.gz
+Source0:	https://github.com/ROCm/rocm-libraries/releases/download/therock-10.1/hipblaslt.tar.gz#/hipblaslt-%{version}.tar.gz
 # Use system rocisa: keep tensilelite pure-Python on PYTHONPATH when BUNDLE=OFF
 Patch0:		0002-system-deps-find-package.patch
 # LLVM 23 true16: f16 convert dst needs .l/.h (HighBitSel) for +real-true16 asm
