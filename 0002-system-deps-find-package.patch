@@ -1,47 +1,84 @@
+Use the installed origami and python-rocisa when the monorepo
+siblings are absent. HIPBLASLT_BUNDLE_PYTHON_DEPS=OFF skips the
+in-tree _rocisa extension so configure does not FetchContent nanobind.
+rocisa::rocisa-cpp is created before that block and is what the host
+library links.
+
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -217,8 +217,9 @@
-     hipblaslt_find_python("${hipblaslt_python_dev}")
-     hipblaslt_configure_bundled_python_command("${CMAKE_CURRENT_BINARY_DIR}/tensilelite/rocisa;${CMAKE_CURRENT_BINARY_DIR}/tensilelite" "${san_opts}")
- else()
-+    # System python-rocisa; still need tensilelite pure-Python for -m Tensile.*
-     hipblaslt_find_python("${hipblaslt_python_dev}")
--    set(HIPBLASLT_PYTHON_COMMAND "${Python_EXECUTABLE}")
-+    hipblaslt_configure_bundled_python_command("${hipblaslt_SOURCE_DIR}/tensilelite" "${san_opts}")
+@@ -244,9 +244,21 @@
+     endif()
  endif()
+ 
+-set(HIPBLASLT_PYTHON_DEPS "_rocisa")
++# Distro builds pass -DHIPBLASLT_BUNDLE_PYTHON_DEPS=OFF and use the
++# installed python-rocisa. Default ON keeps the in-tree extension.
++# That extension FetchContent's nanobind, which an offline build cannot do.
++option(HIPBLASLT_BUNDLE_PYTHON_DEPS "Build the in-tree _rocisa extension." ON)
+ set(hipblaslt_python_dev Development.Module)
+ hipblaslt_find_python("${hipblaslt_python_dev}")
++if(HIPBLASLT_BUNDLE_PYTHON_DEPS)
++    set(HIPBLASLT_PYTHON_DEPS "_rocisa")
++else()
++    # create_device_library must not name a _rocisa target this build does
++    # not create. Source tensilelite is already on the python command's
++    # PYTHONPATH. import rocisa still resolves to the installed module:
++    # tensilelite/rocisa/ has no __init__.py, so it is not a regular package.
++    set(HIPBLASLT_PYTHON_DEPS "")
++endif()
+ hipblaslt_configure_bundled_python_command("${CMAKE_CURRENT_BINARY_DIR}/tensilelite/rocisa;${CMAKE_CURRENT_BINARY_DIR}/tensilelite" "${san_opts}")
  
  if(HIPBLASLT_ENABLE_ROCROLLER)
-@@ -256,18 +257,22 @@
- endif()
- 
- if(NOT ROCM_LIBS_SUPERBUILD)
--    if(HIPBLASLT_ENABLE_THEROCK)
--        find_package(origami CONFIG QUIET)
--    endif()
-+    # Distro / TheRock: prefer installed origami; optional monorepo sibling
+@@ -291,15 +303,25 @@
+ elseif(HIPBLASLT_ENABLE_THEROCK)
+     find_package(origami CONFIG REQUIRED)
+ else()
+-    block(SCOPE_FOR VARIABLES)
+-        set(ORIGAMI_BUILD_SHARED_LIBS OFF)
+-        set(ORIGAMI_ENABLE_FETCH ON)
+-        set(ORIGAMI_BUILD_TESTING OFF)
+-        set(ORIGAMI_ENABLE_PYTHON OFF)
+-        set(BUILD_TESTING OFF)
+-        set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+-        add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../shared/origami" "${CMAKE_CURRENT_BINARY_DIR}/origami")
+-    endblock()
++    # Distro tarballs have no monorepo sibling. Prefer an installed origami
++    # and only add_subdirectory when that sibling is actually present.
 +    find_package(origami CONFIG QUIET)
-     if(NOT TARGET roc::origami)
--        block(SCOPE_FOR VARIABLES)
--            set(ORIGAMI_ENABLE_FETCH ON)
--            set(ORIGAMI_BUILD_TESTING OFF)
--            set(ORIGAMI_ENABLE_PYTHON OFF)
--            set(BUILD_TESTING OFF)
--            set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
--            add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../../shared/origami" "${CMAKE_CURRENT_BINARY_DIR}/origami" EXCLUDE_FROM_ALL)
--        endblock()
++    if(NOT TARGET roc::origami)
 +        set(_origami_sibling "${CMAKE_CURRENT_SOURCE_DIR}/../../shared/origami")
 +        if(IS_DIRECTORY "${_origami_sibling}")
 +            block(SCOPE_FOR VARIABLES)
++                set(ORIGAMI_BUILD_SHARED_LIBS OFF)
 +                set(ORIGAMI_ENABLE_FETCH ON)
 +                set(ORIGAMI_BUILD_TESTING OFF)
 +                set(ORIGAMI_ENABLE_PYTHON OFF)
 +                set(BUILD_TESTING OFF)
 +                set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
-+                add_subdirectory("${_origami_sibling}" "${CMAKE_CURRENT_BINARY_DIR}/origami" EXCLUDE_FROM_ALL)
++                add_subdirectory("${_origami_sibling}" "${CMAKE_CURRENT_BINARY_DIR}/origami")
 +            endblock()
 +        else()
 +            find_package(origami CONFIG REQUIRED)
 +        endif()
-     endif()
++    endif()
  endif()
  
+ add_library(hipblaslt-headers INTERFACE)
+--- a/tensilelite/rocisa/CMakeLists.txt
++++ b/tensilelite/rocisa/CMakeLists.txt
+@@ -60,6 +60,10 @@
+         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+ )
+ 
++# Distro builds set HIPBLASLT_BUNDLE_PYTHON_DEPS=OFF and use the installed
++# python-rocisa. The block FetchContent's nanobind. rocisa::rocisa-cpp above
++# is the host interface either way. Standalone python-rocisa always enters.
++if(HIPBLASLT_BUNDLE_PYTHON_DEPS OR ROCISA_STANDALONE)
+ block()
+     if(ROCISA_STANDALONE)
+         # scikit-build-core pre-installs nanobind (from build-system.requires)
+@@ -386,3 +390,4 @@
+             DESTINATION "rocisa/${STINKYTOFU_PLUGIN_INSTALL_RELDIR}")
+     endif()
+ endblock()
++endif()

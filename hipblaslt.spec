@@ -2,26 +2,22 @@
 # Device generation uses system origami, stinkytofu, and python-rocisa.
 
 Name:		hipblaslt
-Version:	10.1.0
+Version:	10.2.0
 Release:	1
 %{!?rocm_llvm_maj_ver:%global rocm_llvm_maj_ver 23}
 Summary:	HIP BLAS library with lightweight Tensile GEMM kernels
 License:	MIT
 Group:		System/Libraries
 URL:		https://github.com/ROCm/rocm-libraries
-Source0:	https://github.com/ROCm/rocm-libraries/releases/download/therock-10.1/hipblaslt.tar.gz#/hipblaslt-%{version}.tar.gz
+Source0:	https://github.com/ROCm/rocm-libraries/releases/download/therock-10.2/hipblaslt.tar.gz#/hipblaslt-%{version}.tar.gz
 # Use system rocisa: keep tensilelite pure-Python on PYTHONPATH when BUNDLE=OFF
 Patch0:		0002-system-deps-find-package.patch
-# LLVM 23 true16: f16 convert dst needs .l/.h (HighBitSel) for +real-true16 asm
-Patch1:		0003-true16-f16-cvt-llvm23.patch
-# LLVM 23 true16: v_lshlrev_b16 needs .l/.h for int8 pack
-Patch2:		0004-true16-lshl-b16-llvm23.patch
 # One TensileCreateLibrary process per gfx* (peak RAM) and skip TensileLogic --check-all
-Patch3:		0005-per-arch-tensile-create-library.patch
+Patch1:		0005-per-arch-tensile-create-library.patch
 # gfx12: HIP reports WGP count as Physical CUs; restore real CU count for GSU/WGM
-Patch4:		0006-gfx1200-physical-cu.patch
+Patch2:		0006-gfx1200-physical-cu.patch
 # DTVB: require K % DepthU == 0 (tail load over-reads B; was NN-only)
-Patch5:		0007-dtvb-k-tail-bound-multiple.patch
+Patch3:		0007-dtvb-k-tail-bound-multiple.patch
 # Helper .hsaco are AMDGPU ELF ET_DYN. Full find-debuginfo strip drops .symtab
 # and hipModuleLoad then returns "device kernel image is invalid".
 # -g = strip debug only (eu-strip --strip-debug still loads).

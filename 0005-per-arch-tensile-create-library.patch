@@ -2,12 +2,12 @@ Run TensileCreateLibrary once per GPU architecture.
 
 One process holding every gfx* solution set is killed on ABF,
 and TensileLogic --check-all OOMs joblib workers. Skip validation
-and build each architecture separately.
+and build each architecture separately. Keep the logic/codegen
+manifest so an edited generator still dirties the stamps.
 
-diff -Nurp a/cmake/HipBLASLtCodegen.cmake b/cmake/HipBLASLtCodegen.cmake
---- a/cmake/HipBLASLtCodegen.cmake	2026-10-19 06:31:19.303163228 +0200
-+++ b/cmake/HipBLASLtCodegen.cmake	2026-10-19 06:31:19.303306340 +0200
-@@ -45,8 +45,9 @@ function(hipblaslt_create_device_library
+--- a/cmake/hipblaslt_codegen.cmake
++++ b/cmake/hipblaslt_codegen.cmake
+@@ -259,8 +259,9 @@
  
      file(MAKE_DIRECTORY "${_cdl_OUTPUT_DIR}/library")
  
@@ -19,41 +19,80 @@ diff -Nurp a/cmake/HipBLASLtCodegen.cmake b/cmake/HipBLASLtCodegen.cmake
      if(_cdl_OFFLOAD_BUNDLER)
          list(APPEND _opts_list "--offload-bundler=${_cdl_OFFLOAD_BUNDLER}")
      endif()
-@@ -81,59 +82,47 @@ function(hipblaslt_create_device_library
+@@ -297,23 +298,11 @@
+     if(NOT _cdl_ASM_COMMENTS)
          list(APPEND _opts_list "--disable-asm-comments")
      endif()
+-    set(_logic_arches ${_cdl_ARCHES})
++    # --gfx1250v0 only aliases a gfx1250 request. Our GPU list has no gfx1250.
+     if(HIPBLASLT_BUILD_GFX1250V0)
+         list(APPEND _opts_list "--gfx1250v0")
+-        # gfx1250v0 is built from gfx1250-strict's logic, so validate that too.
+-        if("gfx1250" IN_LIST _cdl_ARCHES AND NOT "gfx1250-strict" IN_LIST _cdl_ARCHES)
+-            list(APPEND _logic_arches "gfx1250-strict")
+-        endif()
+     endif()
+-    list(JOIN _logic_arches "$<SEMICOLON>" _logic_arches_semi)
  
--    # Keep the resource as an explicit dependency so quarantine edits invalidate
--    # the validation stamp; TensileLogic itself resolves the resource at runtime.
--    set(_known_bugs_resource "${_codegen_dir}/Tensile/TensileLogic/known_bugs.yaml")
--    set(_logic_stamp "${CMAKE_CURRENT_BINARY_DIR}/${_cdl_TARGET}-TensileLogic.stamp")
--    set(_tensile_logic_opts_list
+-    set(_tensile_logic_args
 -        "${_cdl_LOGIC_PATH}"
 -        --architecture
--        "${_arches_semi}"
+-        "${_logic_arches_semi}"
 -        --use-bundled-known-bugs
 -        --check-all
 -    )
--    # Explicit, caller-owned opt-in: requesting architecture gfx1250v0 alone
--    # does not mean this corpus owns a gfx1250/gfx1250v0 split (a shared
--    # invocation can request that architecture against a corpus, e.g.
--    # hipSPARSELt's, that never did the split and has no overlay directory).
--    if(_cdl_REQUIRE_GFX1250V0_OVERLAY)
--        list(APPEND _tensile_logic_opts_list --require-gfx1250v0-overlay)
+     set(_codegen_dependencies "${_known_bugs_resource}")
+     if(TARGET _rocisa)
+         list(APPEND _codegen_dependencies _rocisa)
+@@ -350,47 +339,53 @@
+     file(CONFIGURE OUTPUT "${_manifest}" CONTENT "${_manifest_content}\n" @ONLY)
+     list(APPEND _codegen_dependencies "${_manifest}")
+ 
+-    set(_logic_stamp "${CMAKE_CURRENT_BINARY_DIR}/${_cdl_TARGET}-TensileLogic.stamp")
+-    add_custom_command(
+-        OUTPUT "${_logic_stamp}"
+-        COMMENT "Validating library logic (TensileLogic --check-all) for ${_cdl_TARGET} ..."
+-        COMMAND ${_python_command}
+-            "${_codegen_dir}/tensilelite/bin/TensileLogic"
+-            ${_tensile_logic_args}
+-        COMMAND ${CMAKE_COMMAND} -E touch "${_logic_stamp}"
+-        DEPENDS ${_codegen_dependencies}
+-        VERBATIM
+-        USES_TERMINAL
+-    )
+-
+-    # All architectures go to this one command, a stepping included. Covering a
+-    # stepping and the architecture it steps from takes more than one run, since
+-    # a run names its target by the ISA and the two spell one ISA -- but that
+-    # split is TensileCreateLibrary's: it cannot happen at configure time, when
+-    # Tensile is not yet importable.
 +    # TensileLogic --check-all loads every YAML and OOMs joblib workers on ABF.
 +    # Skip it; we ship upstream logic unchanged.
 +    #
 +    # Run TensileCreateLibrary once per GPU target so peak RAM is one arch's
 +    # solutions. Lazy-load output is already per-arch under library/<gfx>/.
-+    # Drop build_tmp after each arch to keep the disk footprint down.
-+    set(_output_stamp "${CMAKE_CURRENT_BINARY_DIR}/${_cdl_TARGET}.stamp")
-+    set(_prev_tensile_stamp)
++    # Drop build_tmp after each arch. Upstream also removes it unless
++    # --keep-build-tmp is set; this is the extra safety net.
+     set(_output_stamp "${CMAKE_CURRENT_BINARY_DIR}/${_cdl_TARGET}.stamp")
+-    set(_tcl_command
+-        ${_python_command} -m tensilelite.TensileCreateLibrary
+-        ${_opts_list}
+-        "${_cdl_LOGIC_PATH}"
+-        "${_cdl_OUTPUT_DIR}"
+-        HIP
+-    )
++    set(_prev_tensile_stamp "")
 +    foreach(_arch IN LISTS _cdl_ARCHES)
 +        set(_arch_stamp "${CMAKE_CURRENT_BINARY_DIR}/${_cdl_TARGET}-${_arch}.stamp")
++        if(_prev_tensile_stamp)
++            set(_arch_deps ${_codegen_dependencies} "${_prev_tensile_stamp}")
++        else()
++            set(_arch_deps ${_codegen_dependencies})
++        endif()
 +        add_custom_command(
 +            OUTPUT "${_arch_stamp}"
-+            COMMENT "Building hipBLASLt device library for ${_arch} ..."
-+            COMMAND ${HIPBLASLT_PYTHON_COMMAND} -m Tensile.TensileCreateLibrary
++            COMMENT "Building device library for ${_arch} ..."
++            COMMAND ${_python_command} -m tensilelite.TensileCreateLibrary
 +                "--architecture=${_arch}"
 +                ${_opts_list}
 +                "${_cdl_LOGIC_PATH}"
@@ -61,44 +100,25 @@ diff -Nurp a/cmake/HipBLASLtCodegen.cmake b/cmake/HipBLASLtCodegen.cmake
 +                HIP
 +            COMMAND ${CMAKE_COMMAND} -E rm -rf "${_cdl_OUTPUT_DIR}/build_tmp"
 +            COMMAND ${CMAKE_COMMAND} -E touch "${_arch_stamp}"
-+            DEPENDS ${HIPBLASLT_PYTHON_DEPS} ${_prev_tensile_stamp}
++            DEPENDS ${_arch_deps}
 +            VERBATIM
 +            USES_TERMINAL
 +        )
-+        message(STATUS "Device lib build for ${_arch}: TensileCreateLibrary --architecture=${_arch}")
++        message(STATUS "Device lib build for ${_arch}: tensilelite.TensileCreateLibrary --architecture=${_arch}")
 +        set(_prev_tensile_stamp "${_arch_stamp}")
 +    endforeach()
 +
 +    if(NOT _prev_tensile_stamp)
-+        message(FATAL_ERROR "hipblaslt_create_device_library: ARCHES is empty")
-     endif()
--    add_custom_command(
--        OUTPUT "${_logic_stamp}"
--        COMMENT "Validating library logic (TensileLogic --check-all) for ${_cdl_TARGET} ..."
--        COMMAND ${HIPBLASLT_PYTHON_COMMAND}
--            "${_codegen_dir}/Tensile/bin/TensileLogic"
--            ${_tensile_logic_opts_list}
--        COMMAND ${CMAKE_COMMAND} -E touch "${_logic_stamp}"
--        DEPENDS ${HIPBLASLT_PYTHON_DEPS} "${_known_bugs_resource}"
--        VERBATIM
--        USES_TERMINAL
--    )
- 
--    set(_output_stamp "${CMAKE_CURRENT_BINARY_DIR}/${_cdl_TARGET}.stamp")
--    set(_tcl_command
--        ${HIPBLASLT_PYTHON_COMMAND} -m Tensile.TensileCreateLibrary
--        ${_opts_list}
--        "${_cdl_LOGIC_PATH}"
--        "${_cdl_OUTPUT_DIR}"
--        HIP
--    )
++        message(FATAL_ERROR "create_device_library: ARCHES is empty")
++    endif()
++
      add_custom_command(
          OUTPUT "${_output_stamp}"
          COMMENT "Building device libraries to ${_cdl_OUTPUT_DIR} ..."
 -        COMMAND ${_tcl_command}
          COMMAND ${CMAKE_COMMAND} -E touch "${_output_stamp}"
--        DEPENDS ${HIPBLASLT_PYTHON_DEPS} "${_logic_stamp}"
-+        DEPENDS ${_prev_tensile_stamp}
+-        DEPENDS ${_logic_stamp}
++        DEPENDS "${_prev_tensile_stamp}"
          VERBATIM
 -        USES_TERMINAL
      )
