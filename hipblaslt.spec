@@ -134,6 +134,7 @@ fi
 %doc README.md
 %exclude %{_docdir}/hipblaslt/LICENSE.md
 %{_libdir}/libhipblaslt.so.*
+%{_libdir}/libtensilelite-host.so.*
 %{_libdir}/hipblaslt/
 
 %files devel
@@ -141,5 +142,10 @@ fi
 # Generated CMake headers also installed at include root
 %{_includedir}/hipblaslt-export.h
 %{_includedir}/hipblaslt-version.h
+# tensilelite-host public headers (TheRock 10.2)
+%{_includedir}/Tensile/
+%{_includedir}/rocisa/
+%{_includedir}/tensilelitehost/
 %{_libdir}/libhipblaslt.so
+%{_libdir}/libtensilelite-host.so
 %{_libdir}/cmake/hipblaslt/
